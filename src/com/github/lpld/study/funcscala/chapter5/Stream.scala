@@ -138,8 +138,34 @@ sealed trait Stream[+A] {
       .takeWhile(_._2.nonEmpty)
       .forAll { case (a, aa) => a == aa }
 
+  /*
+   * 5.15
+   */
+  def tails: Stream[Stream[A]] = unfold(this) {
+    case Empty => None
+    case s@Cons(_, t) => Some(s, t())
+  } append Stream.cons(Empty, Empty)
 
+  def hasSubsequence[AA >: A](s: Stream[AA]): Boolean = tails exists (_ startsWith s)
 
+  /*
+   * 5.16
+   */
+  def scanRight[B](b: => B)(f: (A, => B) => B): Stream[B] = this match {
+    case Empty => Stream.cons(b, Empty)
+    case Cons(h, t) =>
+      lazy val s: Cons[B] = t().scanRight(b)(f).asInstanceOf[Cons[B]]
+      Stream.cons(f(h(), s.h()), s)
+  }
+
+  def scanRightViaFoldRight[B](b: => B)(f: (A, => B) => B): Stream[B] =
+    foldRight(Stream.cons(b, Empty))((elem, stream) =>
+      Stream.cons(f(elem, stream.asInstanceOf[Cons[B]].h()), stream)
+    )
+
+  def tailsViaScanRight: Stream[Stream[A]] = scanRight(Empty: Stream[A])(Stream.cons(_, _))
+
+  override def toString = "Stream(" + foldRight("")((a, str) => a + (if (str.isEmpty) "" else ",") + str) + ")"
 }
 
 case object Empty extends Stream[Nothing]
