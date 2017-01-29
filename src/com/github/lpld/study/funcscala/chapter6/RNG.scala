@@ -46,6 +46,12 @@ object RNG {
       (i :: l, r2)
     }
 
+  def chooseInt(rNG: RNG)(start: Int, stopExclusive: Int): (Int, RNG) = {
+    val (i, r) = rNG.nextInt
+    val diff = stopExclusive - start
+    (start + i % diff, r)
+  }
+
   type Rand[+A] = RNG => (A, RNG)
 
   def unit[A](a: A): Rand[A] = rng => (a, rng)

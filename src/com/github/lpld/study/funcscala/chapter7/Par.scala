@@ -66,6 +66,20 @@ object Par {
     map(parOptions)(_.flatten)
   }
 
+  def choiceNBlocking[A](n: Par[Int])(choices: List[Par[A]]): Par[A] =
+    es => choices(run(es)(n).get())(es)
+
+  // flatMap
+  def chooser[A, B](pa: Par[A])(choices: A => Par[B]): Par[B] =
+    es => choices(run(es)(pa).get)(es)
+
+  def join[A](p: Par[Par[A]]): Par[A] = es => run(es)(run(es)(p).get())
+
+  def flatMap[A, B](pa: Par[A])(f: A => Par[B]): Par[B] = join(map(pa)(f))
+
+  def joinViaFlatMap[A](p: Par[Par[A]]): Par[A] = flatMap(p)(a => a)
+
+
   private case class UnitFuture[A](get: A) extends Future[A] {
     override def isCancelled: Boolean = false
 
