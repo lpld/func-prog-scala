@@ -68,6 +68,10 @@ object RNG {
    */
   val doubleViaMap: Rand[Double] = map(_.nextInt)(i => (if (i > 0) i - 1 else -(i + 1)).toDouble / Int.MaxValue)
 
+  val boolean: Rand[Boolean] = map(_.nextInt)(_ % 2 == 0)
+
+  def weighted(trueWeight: Double, falseWeight: Double): Rand[Boolean] = map(_.nextInt)(_ % (trueWeight + falseWeight) <= trueWeight)
+
   /*
    * 6.6
    */
