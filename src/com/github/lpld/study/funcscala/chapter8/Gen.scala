@@ -10,7 +10,7 @@ import com.github.lpld.study.funcscala.chapter8.Prop.{FailedCase, MaxSize, Succe
   */
 object Gen {
 
-  def listOf[A](a: Gen[A]): SGen[List[A]] = SGen(unit[Int] andThen a.listOfN)
+  def listOf[A](a: Gen[A]): SGen[List[A]] = SGen(i => a.listOfN(unit(i)))
 
   def listOfN[A](n: Int, a: Gen[A]): Gen[List[A]] = Gen(State.sequence(List.fill(n)(a.sample)))
 
@@ -24,7 +24,19 @@ object Gen {
     }.find(_.isFalsified).getOrElse(Passed)
   }
 
-  
+  def forAll[A](g: SGen[A])(f: A => Boolean): Prop = forAll(g.forSize)(f)
+
+  def forAll[A](g: Int => Gen[A])(f: A => Boolean): Prop = Prop {
+    (max, n, rng) =>
+      val casesPerSize = (n + max - 1) / max
+      val props: Stream[Prop] =
+        Stream.from(0).take((n min max) + 1).map(i => forAll(g(i))(f))
+      val prop: Prop =
+        props.map(p => Prop { (max, _, rng) =>
+          p.run(max, casesPerSize, rng)
+        }).toList.reduce(_ && _)
+      prop.run(max, n, rng)
+  }
 
   def unit[A](a: => A): Gen[A] = Gen(State.unit(a))
 
@@ -48,7 +60,7 @@ object Gen {
 }
 
 case class Gen[A](sample: State[RNG, A]) {
-  def map[B](f: A => B): Gen[B] = flatMap(f andThen Gen.unit)
+  def map[B](f: A => B): Gen[B] = flatMap(a => Gen.unit(f(a)))
 
   def flatMap[B](f: A => Gen[B]): Gen[B] = Gen(sample.flatMap(f andThen (_.sample)))
 
@@ -87,20 +99,20 @@ sealed trait Result {
 case object Passed extends Result {
   override def isSatisfied: Boolean = true
 
-  override protected def &&(another: => Result): Result = another
+  override protected[chapter8] def &&(another: => Result): Result = another
 
-  override protected def ||(another: => Result): Result = this
+  override protected[chapter8] def ||(another: => Result): Result = this
 }
 
 case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
   override def isSatisfied: Boolean = false
 
-  override protected def &&(another: => Result): Result = this
+  override protected[chapter8] def &&(another: => Result): Result = this
 
-  override protected def ||(another: => Result): Result = another
+  override protected[chapter8] def ||(another: => Result): Result = another
 }
 
-case class SGen[+A](forSize: Int => Gen[A]) {
+case class SGen[A](forSize: Int => Gen[A]) {
   def map[B](f: A => B): SGen[B] = SGen(forSize andThen (_ map f))
 
   def flatMap[B](f: A => Gen[B]): SGen[B] = SGen(forSize andThen (_ flatMap f))
