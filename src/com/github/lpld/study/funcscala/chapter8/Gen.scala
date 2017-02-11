@@ -2,7 +2,7 @@ package com.github.lpld.study.funcscala.chapter8
 
 import com.github.lpld.study.funcscala.chapter5.Stream
 import com.github.lpld.study.funcscala.chapter6.{RNG, State}
-import com.github.lpld.study.funcscala.chapter8.Prop.{FailedCase, SuccessCount, TestCases}
+import com.github.lpld.study.funcscala.chapter8.Prop.{FailedCase, MaxSize, SuccessCount, TestCases}
 
 /**
   * @author leopold
@@ -10,12 +10,12 @@ import com.github.lpld.study.funcscala.chapter8.Prop.{FailedCase, SuccessCount, 
   */
 object Gen {
 
-  def listOf[A](a: Gen[A]): Gen[List[A]] = ???
+  def listOf[A](a: Gen[A]): SGen[List[A]] = SGen(unit[Int] andThen a.listOfN)
 
   def listOfN[A](n: Int, a: Gen[A]): Gen[List[A]] = Gen(State.sequence(List.fill(n)(a.sample)))
 
   def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
-    (n, rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
+    (_, n, rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
       case (a, i) => try {
         if (f(a)) Passed else Falsified(a.toString, i)
       } catch {
@@ -23,6 +23,8 @@ object Gen {
       }
     }.find(_.isFalsified).getOrElse(Passed)
   }
+
+  
 
   def unit[A](a: => A): Gen[A] = Gen(State.unit(a))
 
@@ -46,31 +48,60 @@ object Gen {
 }
 
 case class Gen[A](sample: State[RNG, A]) {
+  def map[B](f: A => B): Gen[B] = flatMap(f andThen Gen.unit)
+
   def flatMap[B](f: A => Gen[B]): Gen[B] = Gen(sample.flatMap(f andThen (_.sample)))
 
   def listOfN(size: Gen[Int]): Gen[List[A]] = size flatMap (Gen.listOfN(_, this))
+
+  def unsized: SGen[A] = SGen(_ => this)
 }
 
 object Prop {
   type FailedCase = String
   type SuccessCount = Int
   type TestCases = Int
+  type MaxSize = Int
 }
 
-case class Prop(run: (TestCases, RNG) => Result) {
-  
+case class Prop(run: (MaxSize, TestCases, RNG) => Result) {
+  def &&(p: Prop): Prop = combine(p)(_ && _)
+
+  def ||(p: Prop): Prop = combine(p)(_ || _)
+
+  private def combine(p: Prop)(c: (Result, => Result) => Result) = Prop {
+    (max, tc, rng) => c(this.run(max, tc, rng), p.run(max, tc, rng))
+  }
 }
 
 sealed trait Result {
   def isSatisfied: Boolean
 
   def isFalsified: Boolean = !isSatisfied
+
+  protected[chapter8] def &&(another: => Result): Result
+
+  protected[chapter8] def ||(another: => Result): Result
 }
 
 case object Passed extends Result {
   override def isSatisfied: Boolean = true
+
+  override protected def &&(another: => Result): Result = another
+
+  override protected def ||(another: => Result): Result = this
 }
 
 case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
   override def isSatisfied: Boolean = false
+
+  override protected def &&(another: => Result): Result = this
+
+  override protected def ||(another: => Result): Result = another
+}
+
+case class SGen[+A](forSize: Int => Gen[A]) {
+  def map[B](f: A => B): SGen[B] = SGen(forSize andThen (_ map f))
+
+  def flatMap[B](f: A => Gen[B]): SGen[B] = SGen(forSize andThen (_ flatMap f))
 }
