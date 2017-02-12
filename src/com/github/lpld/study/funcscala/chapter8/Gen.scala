@@ -1,7 +1,7 @@
 package com.github.lpld.study.funcscala.chapter8
 
 import com.github.lpld.study.funcscala.chapter5.Stream
-import com.github.lpld.study.funcscala.chapter6.{RNG, State}
+import com.github.lpld.study.funcscala.chapter6.{RNG, SimpleRNG, State}
 import com.github.lpld.study.funcscala.chapter8.Prop.{FailedCase, MaxSize, SuccessCount, TestCases}
 
 /**
@@ -10,7 +10,21 @@ import com.github.lpld.study.funcscala.chapter8.Prop.{FailedCase, MaxSize, Succe
   */
 object Gen {
 
-  def listOf[A](a: Gen[A]): SGen[List[A]] = SGen(i => a.listOfN(unit(i)))
+  def run(p: Prop,
+          maxSize: MaxSize = 100,
+          testCases: TestCases = 100,
+          rng: RNG = new SimpleRNG(System.currentTimeMillis())): Unit = {
+    p.run(maxSize, testCases, rng) match {
+      case Falsified(msg, n) =>
+        println(s"! Falsified after $n passed tests:\n $msg")
+      case _ =>
+        println(s"+ OK, passed $testCases tests.")
+    }
+  }
+
+  def listOf[A](a: Gen[A]): SGen[List[A]] = SGen(i => a.listOfN(i))
+
+  def listOf1[A](a: Gen[A]): SGen[List[A]] = SGen(i => a.listOfN(i max 1))
 
   def listOfN[A](n: Int, a: Gen[A]): Gen[List[A]] = Gen(State.sequence(List.fill(n)(a.sample)))
 
@@ -26,6 +40,7 @@ object Gen {
 
   def forAll[A](g: SGen[A])(f: A => Boolean): Prop = forAll(g.forSize)(f)
 
+  // SuccessCount seems to be incorrect in this method
   def forAll[A](g: Int => Gen[A])(f: A => Boolean): Prop = Prop {
     (max, n, rng) =>
       val casesPerSize = (n + max - 1) / max
@@ -64,7 +79,8 @@ case class Gen[A](sample: State[RNG, A]) {
 
   def flatMap[B](f: A => Gen[B]): Gen[B] = Gen(sample.flatMap(f andThen (_.sample)))
 
-  def listOfN(size: Gen[Int]): Gen[List[A]] = size flatMap (Gen.listOfN(_, this))
+  def listOfN(size: Gen[Int]): Gen[List[A]] = size flatMap listOfN
+  def listOfN(size: Int): Gen[List[A]] = Gen.listOfN(size, this)
 
   def unsized: SGen[A] = SGen(_ => this)
 }
@@ -91,25 +107,23 @@ sealed trait Result {
 
   def isFalsified: Boolean = !isSatisfied
 
-  protected[chapter8] def &&(another: => Result): Result
+  protected[chapter8] def &&(another: => Result): Result = this match {
+    case Passed => another
+    case _ => this
+  }
 
-  protected[chapter8] def ||(another: => Result): Result
+  protected[chapter8] def ||(another: => Result): Result = this match {
+    case Passed => this
+    case _ => another
+  }
 }
 
 case object Passed extends Result {
   override def isSatisfied: Boolean = true
-
-  override protected[chapter8] def &&(another: => Result): Result = another
-
-  override protected[chapter8] def ||(another: => Result): Result = this
 }
 
 case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
   override def isSatisfied: Boolean = false
-
-  override protected[chapter8] def &&(another: => Result): Result = this
-
-  override protected[chapter8] def ||(another: => Result): Result = another
 }
 
 case class SGen[A](forSize: Int => Gen[A]) {
