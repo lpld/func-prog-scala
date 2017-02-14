@@ -1,7 +1,11 @@
 package com.github.lpld.study.funcscala.chapter8
 
+import java.util.concurrent.Executors
+
 import com.github.lpld.study.funcscala.chapter6.{SimpleRNG, State}
-import com.github.lpld.study.funcscala.chapter8.Gen.{choose, forAll, listOf}
+import com.github.lpld.study.funcscala.chapter7.Par
+import com.github.lpld.study.funcscala.chapter7.Par.Par
+import com.github.lpld.study.funcscala.chapter8.Gen.{checkPar, choose, forAll, listOf}
 
 /**
   * @author leopold
@@ -24,4 +28,18 @@ object GenDemo extends App {
   val sortedProp = forAll(sortedList)(l => l.zip(l.tail) forall { case (i1, i2) => i1 < i2 })
 
   Gen.run(sortedProp)
+
+  val es = Executors.newCachedThreadPool()
+
+  def equal[A](p: Par[A], p2: Par[A]): Par[Boolean] = Par.map2(p, p2)(_ == _)
+
+  val p2 = checkPar {
+    equal(
+      Par.map(Par.unit(1))(_ + 1),
+      Par.unit(2)
+    )
+  }
+
+  Gen.run(p2)
+//  print(Gen.choose(1, 4).sample.run(SimpleRNG(System.currentTimeMillis()))._1)
 }
