@@ -5,7 +5,7 @@ import java.util.concurrent.Executors
 import com.github.lpld.study.funcscala.chapter6.{SimpleRNG, State}
 import com.github.lpld.study.funcscala.chapter7.Par
 import com.github.lpld.study.funcscala.chapter7.Par.Par
-import com.github.lpld.study.funcscala.chapter8.Gen.{checkPar, choose, forAll, listOf}
+import com.github.lpld.study.funcscala.chapter8.Gen._
 
 /**
   * @author leopold
@@ -29,8 +29,6 @@ object GenDemo extends App {
 
   Gen.run(sortedProp)
 
-  val es = Executors.newCachedThreadPool()
-
   def equal[A](p: Par[A], p2: Par[A]): Par[Boolean] = Par.map2(p, p2)(_ == _)
 
   val p2 = checkPar {
@@ -42,4 +40,10 @@ object GenDemo extends App {
 
   Gen.run(p2)
 //  print(Gen.choose(1, 4).sample.run(SimpleRNG(System.currentTimeMillis()))._1)
+
+  val pars = Gen(State(_.nextInt)) map Par.unit
+
+  val p3 = forAllPar(pars)(p => equal(p, Par.fork(p)))
+
+  Gen.run(p3)
 }
