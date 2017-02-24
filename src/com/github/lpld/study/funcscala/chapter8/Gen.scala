@@ -20,10 +20,10 @@ object Gen {
     p.run(maxSize, testCases, rng) match {
       case Falsified(msg, n) =>
         println(s"! Falsified after $n passed tests:\n $msg")
-      case _ =>
-        println(s"+ OK, passed $testCases tests.")
       case Proved =>
         println(s"+ OK, proved property.")
+      case _ =>
+        println(s"+ OK, passed $testCases tests.")
     }
   }
 

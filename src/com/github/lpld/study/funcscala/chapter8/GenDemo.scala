@@ -16,7 +16,7 @@ object GenDemo extends App {
   val listGen: SGen[List[Int]] = listOf(choose(10, 200))
 
   forAll(listGen)(_ forall (_ < 180)).run(10, 200, SimpleRNG(System.currentTimeMillis())) match {
-    case Passed =>
+    case Passed | Proved =>
       println("OK");
     case Falsified(failedCase, succCount) =>
       println(s"Failed: $failedCase after $succCount successful cases")
