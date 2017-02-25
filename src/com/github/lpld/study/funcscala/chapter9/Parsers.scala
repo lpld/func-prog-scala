@@ -12,8 +12,6 @@ import scala.util.matching.Regex
   */
 trait Parsers[ParseError, Parser[+_]] { self =>
 
-  def char(c: Char): Parser[Char] = string(c.toString) map (_.charAt(0))
-
   def succeed[A](a: A): Parser[A] = string("") map (_ => a)
 
   def orString(s1: String, s2: String): Parser[String]
@@ -30,9 +28,25 @@ trait Parsers[ParseError, Parser[+_]] { self =>
 
   def run[A](p: Parser[A])(input: String): Either[ParseError, A]
 
-  def product[A, B](p1: Parser[A], p2: => Parser[B]): Parser[(A, B)]
+  val spaces: Parser[String] = "\\s*".r
+  val digits: Parser[String] = "[+-]?(\\d*\\.)?\\d+".r
+  val text: Parser[String] = "[^\\\"]".r
 
-  def map[A, B](p: Parser[A])(f: A => B): Parser[B]
+  val double: Parser[Double] = digits map (_.toDouble)
+
+  def token[A](p: Parser[A]): Parser[A] = spaces ** p map (_._2)
+
+  /*
+   * 9.7. Implement `product` in terms of `flatMap`
+   */
+  def product[A, B](p1: Parser[A], p2: => Parser[B]): Parser[(A, B)] =
+    flatMap(p1)(a => map(p2)((a, _)))
+
+  /*
+   * 9.8. Implement `map` in terms of `flatMap`
+   */
+  def map[A, B](p: Parser[A])(f: A => B): Parser[B] =
+    flatMap(p)(f andThen succeed)
 
   def slice[A](p: Parser[A]): Parser[String]
 
@@ -45,8 +59,12 @@ trait Parsers[ParseError, Parser[+_]] { self =>
     product(p1, p2) map { case (a, b) => f(a, b) }
 
   implicit def string(s: String): Parser[String]
+
+  implicit def char(c: Char): Parser[Char] = string(c.toString) map (_.charAt(0))
   implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
+
+  implicit def asCharParser[A](a: A)(implicit f: A => Parser[Char]): ParserOps[Char] = ParserOps(f(a))
 
   implicit def regex(r: Regex): Parser[String]
 
@@ -72,6 +90,27 @@ trait Parsers[ParseError, Parser[+_]] { self =>
     def many: Parser[List[A]] = map2(p, p.many)(_ :: _) | succeed(List())
 
     def slice: Parser[String] = self.slice(p)
+
+    def ~:(left: Parser[_]): Parser[A] = left ** p map (_._2)
+
+    def :~(right: Parser[_]): Parser[A] = p ** right map (_._1)
+
+    // parse but ignore
+    def *~ = :~ _
+
+    // many, separated by `s`
+    def *\(s: Parser[_]): Parser[List[A]] =
+      map2(p *~ s, p.*\(s))(_ :: _) | (p map (List(_)))
+
+    def enclosed(l: Parser[_], r: Parser[_]): Parser[A] = l ~: p :~ r
+
+    // operator `enclosed in`. means that p is expected to be enclosed between two values `a`
+    def \\>(a: Parser[_]): Parser[A] = enclosed(a, a)
+
+    def \\>(p: (Parser[_], Parser[_])): Parser[A] = enclosed(p._1, p._2)
+
+    // returns parser for token, i.e that allows trailing whitespaces
+    def t: Parser[A] = token(p)
   }
 
   object Laws {
