@@ -9,11 +9,7 @@ import scala.language.implicitConversions
   * @author leopold
   * @since 23/02/17
   */
-object Parser {
-}
-
-trait Parsers[ParseError, Parser[+ _]] {
-  self =>
+trait Parsers[ParseError, Parser[+_]] { self =>
 
   def char(c: Char): Parser[Char] = string(c.toString) map (_.charAt(0))
 
@@ -21,7 +17,13 @@ trait Parsers[ParseError, Parser[+ _]] {
 
   def orString(s1: String, s2: String): Parser[String]
 
-  def listOfN[A](n: Int, p: Parser[A]): Parser[List[A]]
+  /*
+   * 9.4. Using `map2` and `succeed`, implement the `listOfN` combinator.
+   */
+  def listOfN[A](n: Int, p: Parser[A]): Parser[List[A]] =
+    if (n < 0) throw new IllegalArgumentException
+    else if (n == 0) succeed(List())
+    else map2(p, listOfN(n - 1, p))(_ :: _)
 
   def or[A](p1: Parser[A], p2: Parser[A]): Parser[A]
 
@@ -36,9 +38,7 @@ trait Parsers[ParseError, Parser[+ _]] {
     product(p1, p2) map { case (a, b) => f(a, b) }
 
   implicit def string(s: String): Parser[String]
-
   implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
-
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
 
   case class ParserOps[A](p: Parser[A]) {
@@ -48,8 +48,6 @@ trait Parsers[ParseError, Parser[+ _]] {
 
     def **[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
-    def many: Parser[List[A]] = ???
-
     def map[B](f: A => B): Parser[B] = ???
 
     def slice: Parser[String] = ???
@@ -57,7 +55,12 @@ trait Parsers[ParseError, Parser[+ _]] {
     /*
      * 9.1 (pt. 2). Use map2 to implement many1
      */
-    def many1: Parser[List[A]] = map2(p, many1)(_ :: _)
+    def many1: Parser[List[A]] = map2(p, p.many)(_ :: _)
+
+    /*
+     * 9.3. Define `many` in terms of `or`, `map2` and `succeed`
+     */
+    def many: Parser[List[A]] = map2(p, p.many)(_ :: _) | succeed(List())
   }
 
   object Laws {

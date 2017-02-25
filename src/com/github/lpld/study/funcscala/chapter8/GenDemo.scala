@@ -1,7 +1,5 @@
 package com.github.lpld.study.funcscala.chapter8
 
-import java.util.concurrent.Executors
-
 import com.github.lpld.study.funcscala.chapter6.{SimpleRNG, State}
 import com.github.lpld.study.funcscala.chapter7.Par
 import com.github.lpld.study.funcscala.chapter7.Par.Par
