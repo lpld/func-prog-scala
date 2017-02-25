@@ -4,6 +4,7 @@ import com.github.lpld.study.funcscala.chapter8.Gen.forAll
 import com.github.lpld.study.funcscala.chapter8.{Gen, Prop}
 
 import scala.language.implicitConversions
+import scala.util.matching.Regex
 
 /**
   * @author leopold
@@ -29,28 +30,36 @@ trait Parsers[ParseError, Parser[+_]] { self =>
 
   def run[A](p: Parser[A])(input: String): Either[ParseError, A]
 
-  def product[A, B](p1: Parser[A], p2: Parser[B]): Parser[(A, B)]
+  def product[A, B](p1: Parser[A], p2: => Parser[B]): Parser[(A, B)]
+
+  def map[A, B](p: Parser[A])(f: A => B): Parser[B]
+
+  def slice[A](p: Parser[A]): Parser[String]
+
+  def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
   /*
    * 9.1 (pt. 1). Using product, implement map2
    */
-  def map2[A, B, C](p1: Parser[A], p2: Parser[B])(f: (A, B) => C): Parser[C] =
+  def map2[A, B, C](p1: Parser[A], p2: => Parser[B])(f: (A, B) => C): Parser[C] =
     product(p1, p2) map { case (a, b) => f(a, b) }
 
   implicit def string(s: String): Parser[String]
   implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
 
+  implicit def regex(r: Regex): Parser[String]
+
   case class ParserOps[A](p: Parser[A]) {
-    def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
+    def |[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
 
     def or[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
 
     def **[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
-    def map[B](f: A => B): Parser[B] = ???
+    def map[B](f: A => B): Parser[B] = self.map(p)(f)
 
-    def slice: Parser[String] = ???
+    def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
 
     /*
      * 9.1 (pt. 2). Use map2 to implement many1
@@ -61,6 +70,8 @@ trait Parsers[ParseError, Parser[+_]] { self =>
      * 9.3. Define `many` in terms of `or`, `map2` and `succeed`
      */
     def many: Parser[List[A]] = map2(p, p.many)(_ :: _) | succeed(List())
+
+    def slice: Parser[String] = self.slice(p)
   }
 
   object Laws {
@@ -92,5 +103,26 @@ trait Parsers[ParseError, Parser[+_]] { self =>
         p1.map(f) ** p2.map(g),
         p1 ** p2 map { case (a, b) => (f(a), g(b)) }
       )(in)
+  }
+
+  object Methods {
+
+    /*
+     * 9.6 Context sensitive parser, that handles strings like
+     * 0
+     * 1a
+     * 2aa
+     * 4aaaa
+     * and returns number of chars
+     */
+    def sequenceOf(c: Char): Parser[Int] =
+      "\\d+".r map (_.toInt) flatMap (listOfN(_, char(c)).slice map (_.length))
+    
+
+    def sequenceOfFor(c: Char): Parser[Int] = for {
+      digits <- "\\d+".r
+      n = digits.toInt
+      str <- listOfN(n, char('c')).slice
+    } yield str.length
   }
 }
