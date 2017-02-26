@@ -10,11 +10,13 @@ import scala.util.matching.Regex
   * @author leopold
   * @since 23/02/17
   */
-trait Parsers[ParseError, Parser[+_]] { self =>
+trait Parsers[Parser[+_]] { self =>
 
-  def succeed[A](a: A): Parser[A] = string("") map (_ => a)
+  // this implementation causes infinite recursion because
+  // map is implemented in terms of succeed.
+  def succeedViaMap[A](a: A): Parser[A] = string("") map (_ => a)
 
-  def orString(s1: String, s2: String): Parser[String]
+  def succeed[A](a: A): Parser[A]
 
   /*
    * 9.4. Using `map2` and `succeed`, implement the `listOfN` combinator.
@@ -51,6 +53,12 @@ trait Parsers[ParseError, Parser[+_]] { self =>
   def slice[A](p: Parser[A]): Parser[String]
 
   def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
+
+  def label[A](msg: String)(p: Parser[A]): Parser[A]
+
+  def scope[A](msg: String)(p: Parser[A]): Parser[A]
+
+  def attempt[A](p: Parser[A]): Parser[A]
 
   /*
    * 9.1 (pt. 1). Using product, implement map2
@@ -99,18 +107,20 @@ trait Parsers[ParseError, Parser[+_]] { self =>
     def *~ = :~ _
 
     // many, separated by `s`
-    def *\(s: Parser[_]): Parser[List[A]] =
-      map2(p *~ s, p.*\(s))(_ :: _) | (p map (List(_)))
+    def by(s: Parser[_]): Parser[List[A]] =
+      map2(p *~ s, p.by(s))(_ :: _) | (p map (List(_)))
 
     def enclosed(l: Parser[_], r: Parser[_]): Parser[A] = l ~: p :~ r
 
     // operator `enclosed in`. means that p is expected to be enclosed between two values `a`
-    def \\>(a: Parser[_]): Parser[A] = enclosed(a, a)
+    def inside(a: Parser[_]): Parser[A] = enclosed(a, a)
 
-    def \\>(p: (Parser[_], Parser[_])): Parser[A] = enclosed(p._1, p._2)
+    def inside(p: (Parser[_], Parser[_])): Parser[A] = enclosed(p._1, p._2)
 
     // returns parser for token, i.e that allows trailing whitespaces
     def t: Parser[A] = token(p)
+
+    def as(msg: String): Parser[A] = label(msg)(p)
   }
 
   object Laws {
@@ -165,3 +175,13 @@ trait Parsers[ParseError, Parser[+_]] { self =>
     } yield str.length
   }
 }
+
+case class Location(input: String, offset: Int = 0) {
+  lazy val line = input.slice(0, offset + 1).count(_ == '\n') + 1
+  lazy val column = input.slice(0, offset + 1).lastIndexOf('\n') match {
+    case -1 => offset + 1
+    case lineStart => offset - lineStart
+  }
+}
+
+case class ParseError(stack: List[(Location, String)])

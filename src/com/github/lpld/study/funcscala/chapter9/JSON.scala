@@ -25,7 +25,7 @@ object JSON {
   /*
    * 9.9. Implement JSON parser
    */
-  def jsonParser[Err, Parser[+ _]](P: Parsers[Err, Parser]): Parser[JSON] = {
+  def jsonParser[Parser[+_]](P: Parsers[Parser]): Parser[JSON] = {
     import P._
 
     object Parser {
@@ -35,19 +35,27 @@ object JSON {
       val comma = token(',')
       val colon = token(':')
 
-      val stringExpr = text \\> '"'
+      val stringExpr = text inside '"'
 
       val jNull = string("null").t map (_ => JNull)
       val jNumber = double.t map JNumber
-      val jString = stringExpr map JString
+      val jString = stringExpr.t map JString
       val jBool = ("true" | "false").t map (_.toBoolean) map JBool
 
-      val field: Parser[(String, JSON)] = stringExpr *~ colon ** json
+      val field: Parser[(String, JSON)] = scope("Field") {
+        (stringExpr as "Field name") *~ colon ** (json as "Field value")
+      }
 
-      val jArray: Parser[JArray] = (json *\ comma \\> brackets) map (_.toIndexedSeq) map JArray
-      val jObject: Parser[JObject] = (field *\ comma \\> braces) map (_.toMap) map JObject
+      val jArray: Parser[JArray] = scope("Array") {
+        (json by comma inside brackets) map (_.toIndexedSeq) map JArray
+      }
+      val jObject: Parser[JObject] = scope("Object") {
+        (field by comma inside braces) map (_.toMap) map JObject
+      }
 
-      def json: Parser[JSON] = jNull | jNumber | jString | jBool | jArray | jObject
+      def json: Parser[JSON] = scope("JSON value") {
+        jNull | jNumber | jString | jBool | jArray | jObject
+      }
     }
 
     Parser.json
