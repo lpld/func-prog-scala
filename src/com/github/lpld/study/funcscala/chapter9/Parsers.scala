@@ -26,13 +26,13 @@ trait Parsers[Parser[+_]] { self =>
     else if (n == 0) succeed(List())
     else map2(p, listOfN(n - 1, p))(_ :: _)
 
-  def or[A](p1: Parser[A], p2: Parser[A]): Parser[A]
+  def or[A](p1: Parser[A], p2: => Parser[A]): Parser[A]
 
   def run[A](p: Parser[A])(input: String): Either[ParseError, A]
 
   val spaces: Parser[String] = "\\s*".r
   val digits: Parser[String] = "[+-]?(\\d*\\.)?\\d+".r
-  val text: Parser[String] = "[^\\\"]".r
+  val text: Parser[String] = "[^\\\"]*".r
 
   val double: Parser[Double] = digits map (_.toDouble)
 
@@ -108,9 +108,11 @@ trait Parsers[Parser[+_]] { self =>
     // parse but ignore
     def *~ = :~ _
 
+    def ~* = ~: _
+
     // many, separated by `s`
     def by(s: Parser[_]): Parser[List[A]] =
-      map2(p *~ s, p.by(s))(_ :: _) | (p map (List(_)))
+      map2(p *~ s, p by s)(_ :: _) | (p map (List(_))) | succeed(Nil)
 
     def enclosed(l: Parser[_], r: Parser[_]): Parser[A] = l ~: p :~ r
 

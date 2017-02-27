@@ -13,7 +13,7 @@ class NaiveParsers extends Parsers[NaiveParser] {
 
   override def succeed[A](a: A): NaiveParser[A] = UnitParser(a)
 
-  override def or[A](p1: NaiveParser[A], p2: NaiveParser[A]): NaiveParser[A] = AlternativeParser(p1, p2)
+  override def or[A](p1: NaiveParser[A], p2: => NaiveParser[A]): NaiveParser[A] = new AlternativeParser(p1, p2)
 
   override def run[A](p: NaiveParser[A])(input: String): Either[ParseError, A] =
     (p parse input).right map (_._1)
@@ -69,13 +69,10 @@ case class StringParser(str: String) extends ToStringParser {
 
 case class RegexParser(r: Regex) extends ToStringParser {
   override def matchInput(in: String): Option[Parts] =
-    r.findFirstMatchIn(in) map { m =>
-      val matched = m.matched
-      (matched, in.substring(matched.length))
-    }
+    r findPrefixOf in map { s => (s, in.substring(s.length)) }
 }
 
-case class AlternativeParser[T](p1: NaiveParser[T], p2: NaiveParser[T]) extends NaiveParser[T] {
+class AlternativeParser[T](p1: NaiveParser[T], p2: => NaiveParser[T]) extends NaiveParser[T] {
   override def matchInput(in: String): Option[Parts] =
     (p1 matchInput in) orElse (p2 matchInput in)
 

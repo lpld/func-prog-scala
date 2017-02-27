@@ -25,41 +25,46 @@ object JSON {
   /*
    * 9.9. Implement JSON parser
    */
-  def jsonParser[Parser[+_]](P: Parsers[Parser]): Parser[JSON] = {
+  //  def jsonParsers[Parser[+_]](P: Parsers[Parser]): JsonParsers[Parser] = JsonParsers(P)
+
+  def j[Parser[+ _]](P: Parsers[Parser]): Parser[JSON] = {
     import P._
 
-    object Parser {
+    def brackets = (token('['), token(']'))
 
-      val brackets = (token('['), token(']'))
-      val braces = (token('{'), token('}'))
-      val comma = token(',')
-      val colon = token(':')
+    def braces = (token('{'), token('}'))
 
-      val stringExpr = text inside '"'
+    def comma = token(',')
 
-      val jNull = string("null").t map (_ => JNull)
-      val jNumber = double.t map JNumber
-      val jString = stringExpr.t map JString
-      val jBool = ("true" | "false").t map (_.toBoolean) map JBool
+    def colon = token(':')
 
-      val field: Parser[(String, JSON)] = scope("Field") {
-        (stringExpr as "Field name") *~ colon ** (json as "Field value")
-      }
+    def stringExpr = token(text inside '"')
 
-      val jArray: Parser[JArray] = scope("Array") {
-        (json by comma inside brackets) map (_.toIndexedSeq) map JArray
-      }
-      val jObject: Parser[JObject] = scope("Object") {
-        (field by comma inside braces) map (_.toMap) map JObject
-      }
+    def jNull = string("null").t map (_ => JNull)
 
-      def json: Parser[JSON] = scope("JSON value") {
-        jNull | jNumber | jString | jBool | jArray | jObject
-      }
+    def jNumber = double.t map JNumber
+
+    def jString = stringExpr.t map JString
+
+    def jBool = ("true" | "false").t map (_.toBoolean) map JBool
+
+    def field: Parser[(String, JSON)] = scope("Field") {
+      (stringExpr as "Field name") *~ colon ** (json as "Field value")
     }
 
-    Parser.json
-  }
+    def json: Parser[JSON] = scope("JSON value") {
+      jNull | jNumber | jString | jBool | jArray | jObject
+    }
 
+    def jArray: Parser[JArray] = /*scope("Array") {*/
+      (json by comma inside brackets) map (_.toIndexedSeq) map JArray
+
+    //    }
+    def jObject: Parser[JObject] = scope("Object") {
+      (field by comma inside braces) map (_.toMap) map JObject
+    }
+
+    jArray | jObject
+  }
 }
 
