@@ -93,7 +93,10 @@ case class SequentialParser[A, B](p: NaiveParser[A], f: A => NaiveParser[B]) ext
       case _ => None
     }
 
-  override def parse(in: String): Either[ParseError, Res[B]] = {
-    p.parse(in).right flatMap { case (a, (_, rest)) => f(a).parse(rest) }
-  }
+  override def parse(in: String): Either[ParseError, Res[B]] =
+    for {
+      r <- (p parse in).right
+      r2 <- (f(r._1) parse r._2._2).right
+    } yield (r2._1, (r._2._1 + r2._2._1, r2._2._2))
+
 }

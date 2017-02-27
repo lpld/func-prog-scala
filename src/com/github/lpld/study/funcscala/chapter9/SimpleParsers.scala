@@ -33,13 +33,18 @@ object ParsersDemo extends App {
 
   private val seqOfA = ps.sequenceOfFor('a')
 
-//  println(parsers.run(seqOfA)("4aaaa"))
+  println(parsers.run(seqOfA)("4aaaa"))
 
 //  println(run(string("abc").slice)("abcd"))
 
 //  println(run(("\\w".r flatMap(s => char(s.charAt(0)))).slice)("aab"))
 
-  println(run(parsers.listOfN(1, 'c').slice)("cccca"))
+  // todo: there's an issue with slice after map2
+  //  println(run(map2("\\d".r , "\\d".r)(_.toDouble + _.toDouble).slice)("123"))
+
+//  println(run((string("vb") flatMap (_ => succeed('t'))).slice)("vbn"))
+
+//    println(run(parsers.listOfN(1, 'c').slice)("cccca"))
 
 //  println(parsers.run(parsers.double)("5.53ghjg"))
 

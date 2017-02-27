@@ -64,7 +64,9 @@ trait Parsers[Parser[+_]] { self =>
    * 9.1 (pt. 1). Using product, implement map2
    */
   def map2[A, B, C](p1: Parser[A], p2: => Parser[B])(f: (A, B) => C): Parser[C] =
-    product(p1, p2) map { case (a, b) => f(a, b) }
+    for {a <- p1; b <- p2} yield f(a, b)
+  // following does not always work. todo: why?
+  //    product(p1, p2) map { case (a, b) => f(a, b) }
 
   implicit def string(s: String): Parser[String]
 
@@ -152,27 +154,6 @@ trait Parsers[Parser[+_]] { self =>
         p1.map(f) ** p2.map(g),
         p1 ** p2 map { case (a, b) => (f(a), g(b)) }
       )(in)
-  }
-
-  object Methods {
-
-    /*
-     * 9.6 Context sensitive parser, that handles strings like
-     * 0
-     * 1a
-     * 2aa
-     * 4aaaa
-     * and returns number of chars
-     */
-    def sequenceOf(c: Char): Parser[Int] =
-      "\\d+".r map (_.toInt) flatMap (listOfN(_, char(c)).slice map (_.length))
-    
-
-    def sequenceOfFor(c: Char): Parser[Int] = for {
-      digits <- "\\d+".r
-      n = digits.toInt
-      str <- listOfN(n, char('c')).slice
-    } yield str.length
   }
 }
 
