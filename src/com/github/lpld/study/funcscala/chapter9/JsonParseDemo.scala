@@ -11,7 +11,7 @@ object JsonParseDemo extends App {
 
   import parsers._
 
-  val p = JSON.j(parsers)
+  val p = JSON.jsonParser(parsers)
 
 //  import jsonParsers._
 

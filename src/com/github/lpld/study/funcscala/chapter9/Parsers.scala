@@ -68,7 +68,7 @@ trait Parsers[Parser[+_]] { self =>
   // following does not always work. todo: why?
   //    product(p1, p2) map { case (a, b) => f(a, b) }
 
-  implicit def string(s: String): Parser[String]
+  def string(s: String): Parser[String]
 
   implicit def char(c: Char): Parser[Char] = string(c.toString) map (_.charAt(0))
   implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
@@ -77,6 +77,8 @@ trait Parsers[Parser[+_]] { self =>
   implicit def asCharParser[A](a: A)(implicit f: A => Parser[Char]): ParserOps[Char] = ParserOps(f(a))
 
   implicit def regex(r: Regex): Parser[String]
+
+  implicit def asToken(str: String): Parser[String] = token(string(str))
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
@@ -101,30 +103,30 @@ trait Parsers[Parser[+_]] { self =>
 
     def slice: Parser[String] = self.slice(p)
 
-    def ~:(left: Parser[_]): Parser[A] = left ** p map (_._2)
+    def ~*[B](left: Parser[B]): Parser[B] = left ** p map (_._1)
 
-    def :~(right: Parser[_]): Parser[A] = p ** right map (_._1)
-
-    // parse but ignore
-    def *~ = :~ _
-
-    def ~* = ~: _
+    def *~(right: Parser[_]): Parser[A] = p ** right map (_._1)
 
     // many, separated by `s`
     def by(s: Parser[_]): Parser[List[A]] =
       map2(p *~ s, p by s)(_ :: _) | (p map (List(_))) | succeed(Nil)
 
-    def enclosed(l: Parser[_], r: Parser[_]): Parser[A] = l ~: p :~ r
-
     // operator `enclosed in`. means that p is expected to be enclosed between two values `a`
-    def inside(a: Parser[_]): Parser[A] = enclosed(a, a)
+    def inside(a: Parser[_]): Parser[A] = inside(a, a)
 
-    def inside(p: (Parser[_], Parser[_])): Parser[A] = enclosed(p._1, p._2)
+    def inside(ps: (Parser[_], Parser[_])): Parser[A] = ps._1 ~* p *~ ps._2
 
     // returns parser for token, i.e that allows trailing whitespaces
     def t: Parser[A] = token(p)
 
-    def as(msg: String): Parser[A] = label(msg)(p)
+    def label(msg: String): Parser[A] = self.label(msg)(p)
+
+    def as[B](b: B): Parser[B] = map(_ => b)
+  }
+
+  object T {
+
+    implicit def asToken(str: String): Parser[String] = token(string(str))
   }
 
   object Laws {

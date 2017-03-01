@@ -1,6 +1,8 @@
 package com.github.lpld.study.funcscala.chapter9
 
 import scala.language.postfixOps
+import language.higherKinds
+import language.implicitConversions
 
 /**
   * @author leopold
@@ -25,43 +27,28 @@ object JSON {
   /*
    * 9.9. Implement JSON parser
    */
-  //  def jsonParsers[Parser[+_]](P: Parsers[Parser]): JsonParsers[Parser] = JsonParsers(P)
-
-  def j[Parser[+ _]](P: Parsers[Parser]): Parser[JSON] = {
+  def jsonParser[Parser[+ _]](P: Parsers[Parser]): Parser[JSON] = {
     import P._
 
-    def brackets = (token('['), token(']'))
+    val quotedString = token(text inside '"')
 
-    def braces = (token('{'), token('}'))
+    val jNull = "null" as JNull
+    val jNumber = token(double) map JNumber
+    val jString = quotedString map JString
+    val jBool = ("true" as JBool(true)) | ("false" as JBool(false))
 
-    def comma = token(',')
+    def jArray = scope("Array")(
+      value by "," inside("[", "]")
+        map (l => JArray(l.toIndexedSeq))
+    )
 
-    def colon = token(':')
+    def jObject = scope("Object")(
+      (quotedString *~ ":" ** value) by "," inside("{", "}")
+        map (v => JObject(v.toMap))
+    )
 
-    def stringExpr = token(text inside '"')
-
-    def jNull = string("null").t map (_ => JNull)
-
-    def jNumber = double.t map JNumber
-
-    def jString = stringExpr.t map JString
-
-    def jBool = ("true" | "false").t map (_.toBoolean) map JBool
-
-    def field: Parser[(String, JSON)] = scope("Field") {
-      (stringExpr as "Field name") *~ colon ** (json as "Field value")
-    }
-
-    def json: Parser[JSON] = scope("JSON value") {
+    def value: Parser[JSON] = scope("JSON value") {
       jNull | jNumber | jString | jBool | jArray | jObject
-    }
-
-    def jArray: Parser[JArray] = /*scope("Array") {*/
-      (json by comma inside brackets) map (_.toIndexedSeq) map JArray
-
-    //    }
-    def jObject: Parser[JObject] = scope("Object") {
-      (field by comma inside braces) map (_.toMap) map JObject
     }
 
     jArray | jObject
