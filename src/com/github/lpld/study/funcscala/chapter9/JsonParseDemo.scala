@@ -20,7 +20,7 @@ object JsonParseDemo extends App {
 {
   "Company name" : "Microsoft Corporation",
   "Ticker"  : "MSFT",
-  "Active"  : true,
+  "Active"  : true,,
   "Price"   : 30.66,
   "Shares outstanding" : 8.38,
   "Related companies" : [ "HPQ", "IBM", "YHOO", "DELL", "GOOG" ]

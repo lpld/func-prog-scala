@@ -103,7 +103,7 @@ trait Parsers[Parser[+_]] { self =>
 
     def slice: Parser[String] = self.slice(p)
 
-    def ~*[B](left: Parser[B]): Parser[B] = left ** p map (_._1)
+    def ~*[B](right: Parser[B]): Parser[B] = p ** right map (_._2)
 
     def *~(right: Parser[_]): Parser[A] = p ** right map (_._1)
 
@@ -114,7 +114,7 @@ trait Parsers[Parser[+_]] { self =>
     // operator `enclosed in`. means that p is expected to be enclosed between two values `a`
     def inside(a: Parser[_]): Parser[A] = inside(a, a)
 
-    def inside(ps: (Parser[_], Parser[_])): Parser[A] = ps._1 ~* p *~ ps._2
+    def inside(ps: (Parser[_], Parser[_])): Parser[A] = (ps._1 ~* p) *~ ps._2
 
     // returns parser for token, i.e that allows trailing whitespaces
     def t: Parser[A] = token(p)
@@ -122,11 +122,6 @@ trait Parsers[Parser[+_]] { self =>
     def label(msg: String): Parser[A] = self.label(msg)(p)
 
     def as[B](b: B): Parser[B] = map(_ => b)
-  }
-
-  object T {
-
-    implicit def asToken(str: String): Parser[String] = token(string(str))
   }
 
   object Laws {
