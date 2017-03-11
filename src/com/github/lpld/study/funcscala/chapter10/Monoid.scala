@@ -1,5 +1,6 @@
 package com.github.lpld.study.funcscala.chapter10
 
+import com.github.lpld.study.funcscala.chapter7.Par.Par
 import com.github.lpld.study.funcscala.chapter8.Gen.forAll
 import com.github.lpld.study.funcscala.chapter8.{Gen, Prop}
 
@@ -76,5 +77,35 @@ object Monoid {
 
     zeroProp && assocProp
   }
-}
 
+  def concatenate[A](as: List[A], m: Monoid[A]): A = as.foldLeft(m.zero)(m.op)
+
+  /*
+   * 10.5. Implement `foldMap`
+   */
+  def foldMap[A, B](as: List[A], m: Monoid[B])(f: A => B): B =
+    as.foldLeft(m.zero)((b, a) => m.op(b, f(a)))
+
+  /*
+   * 10.6. Implement `foldLeft` using `foldMap`
+   */
+  def foldLeftViaFoldMap[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
+    foldMap(as, endoMonoid[B])(a => f(_, a))(z)
+
+  /*
+   * 10.7. Implement a `foldMap` for `IndexedSeq` using balanced fold strategy
+   */
+  def foldMapV[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): B = v match {
+    case IndexedSeq() => m.zero
+    case IndexedSeq(a) => f(a)
+    case _ =>
+      val (fst, snd) = v.splitAt(v.length / 2)
+      m.op(foldMapV(fst, m)(f), foldMapV(snd, m)(f))
+  }
+
+  /*
+   * 10.8. Implement a parallel version of `foldMap`.
+   */
+  def par[A](m: Monoid[A]): Monoid[Par[A]] = ???
+  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = ???
+}
