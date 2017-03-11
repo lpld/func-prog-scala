@@ -1,5 +1,8 @@
 package com.github.lpld.study.funcscala.chapter10
 
+import com.github.lpld.study.funcscala.chapter8.Gen.forAll
+import com.github.lpld.study.funcscala.chapter8.{Gen, Prop}
+
 /**
   * @author leopold
   * @since 11/03/17
@@ -58,6 +61,20 @@ object Monoid {
   def endoMonoid[A] = new Monoid[A => A] {
     def op(a1: A => A, a2: A => A): A => A = a1 andThen a2
     val zero: (A => A) = identity
+  }
+
+  /*
+   * 10.4. Use the property-based testing framework to implement a
+   * property for the monoid laws.
+   */
+  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = {
+    val triples = gen.listOfN(3).map { case a :: b :: c :: Nil => (a, b, c) }
+
+    import m._
+    val zeroProp = forAll(gen)(a => op(zero, a) == a && op(a, zero) == a)
+    val assocProp = forAll(triples) { case (a, b, c) => op(op(a, b), c) == op(a, op(b, c)) }
+
+    zeroProp && assocProp
   }
 }
 
