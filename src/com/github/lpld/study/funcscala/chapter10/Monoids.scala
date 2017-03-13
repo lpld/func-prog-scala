@@ -8,4 +8,6 @@ import com.github.lpld.study.funcscala.chapter8.Gen
   */
 object Monoids extends App {
   Gen.run(Monoid.isOrderedTest)
+
+  println(Monoid.wordsCount(""))
 }

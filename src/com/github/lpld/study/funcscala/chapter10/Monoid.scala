@@ -172,4 +172,36 @@ object Monoid {
       forAll(list)(l => isOrdered(l) == checkOrder(l, asc = true) || checkOrder(l, asc = false))
   }
 
+  // Parallel parsing
+  sealed trait WC
+  case class Stub(chars: String) extends WC
+  case class Part(lStub: String, words: Int, rStub: String) extends WC
+
+  /*
+   * 10.10. Write a monoid instance for `WC` and make sure it meets the monoid laws.
+   */
+  val wcMonoid: Monoid[WC] = new Monoid[WC] {
+    def op(a1: WC, a2: WC): WC = (a1, a2) match {
+      case (Stub(c1), Stub(c2)) => Stub(c1 + c2)
+      case (Stub(c1), Part(ls, count, rs)) => Part(c1 + ls, count, rs)
+      case (Part(ls, count, rs), Stub(c2)) => Part(ls, count, rs + c2)
+      case (Part(ls1, count1, rs1), Part(ls2, count2, rs2)) =>
+        val extraWord = if (rs1.nonEmpty || ls2.nonEmpty) 1 else 0
+        Part(ls1, count1 + count2 + extraWord, rs2)
+    }
+    def zero: WC = Part("", 0, "")
+  }
+
+  /*
+   * 10.11. Implement a function that counts words in a String
+   */
+  def wordsCount(input: String): Int = {
+    val result = foldMapV(input, wcMonoid)(char => if (char.isWhitespace) wcMonoid.zero else Stub(char.toString))
+    def countW(s: String) = if (s.isEmpty) 0 else 1
+
+    result match {
+      case Stub(string) => countW(string)
+      case Part(l, count, r) => count + countW(l) + countW(r)
+    }
+  }
 }
