@@ -204,4 +204,40 @@ object Monoid {
       case Part(l, count, r) => count + countW(l) + countW(r)
     }
   }
+
+  /*
+   * 10.16. Monoid product
+   */
+  def productMonoid[A, B](a: Monoid[A], b: Monoid[B]): Monoid[(A, B)] =
+    new Monoid[(A, B)] {
+      def op(a1: (A, B), a2: (A, B)): (A, B) = (a.op(a1._1, a2._1), b.op(a1._2, a2._2))
+
+      val zero: (A, B) = (a.zero, b.zero)
+    }
+
+  /*
+   * 10.17. Write a monoid instance for functions whose results are monoids
+   */
+  def functionMonoid[A, B](mb: Monoid[B]): Monoid[A => B] =
+    new Monoid[(A) => B] {
+      def op(a1: A => B, a2: A => B): A => B = a => mb.op(a1(a), a2(a))
+
+      val zero: A => B = _ => mb.zero
+    }
+
+  /*
+   * 10.18. Use monoids to construct a bag from IndexedSeq
+   */
+  def mapMergeMonoid[K, V](V: Monoid[V]): Monoid[Map[K, V]] = new Monoid[Map[K, V]] {
+    val zero: Map[K, V] = Map[K, V]()
+
+    def op(a: Map[K, V], b: Map[K, V]): Map[K, V] =
+      (a.keySet ++ b.keySet).foldLeft(zero) { (acc, k) =>
+        acc.updated(k, V.op(a.getOrElse(k, V.zero),
+                            b.getOrElse(k, V.zero)))
+      }
+  }
+
+  def bag[A](as: IndexedSeq[A]): Map[A, Int] =
+    foldMapV(as, mapMergeMonoid[A, Int](intAddition))(a => Map(a -> 1))
 }
