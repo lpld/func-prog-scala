@@ -74,6 +74,7 @@ object Gen {
 
   def unit[A](a: => A): Gen[A] = Gen(State.unit(a))
 
+  def int: Gen[Int] = Gen(State(_.nextInt))
   def choose(start: Int, stopExclusive: Int): Gen[Int] = Gen(State(RNG.chooseInt(start, stopExclusive)))
 
   def boolean: Gen[Boolean] = Gen(State[RNG, Int](_.nextInt).map(_ % 2 == 0))

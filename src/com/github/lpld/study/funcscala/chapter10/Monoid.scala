@@ -1,7 +1,8 @@
 package com.github.lpld.study.funcscala.chapter10
 
+import com.github.lpld.study.funcscala.chapter7.Par
 import com.github.lpld.study.funcscala.chapter7.Par.Par
-import com.github.lpld.study.funcscala.chapter8.Gen.forAll
+import com.github.lpld.study.funcscala.chapter8.Gen.{forAll, listOf}
 import com.github.lpld.study.funcscala.chapter8.{Gen, Prop}
 
 /**
@@ -106,6 +107,69 @@ object Monoid {
   /*
    * 10.8. Implement a parallel version of `foldMap`.
    */
-  def par[A](m: Monoid[A]): Monoid[Par[A]] = ???
-  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = ???
+  def par[A](m: Monoid[A]): Monoid[Par[A]] = new Monoid[Par[A]] {
+    def op(a1: Par[A], a2: Par[A]): Par[A] = Par.fork(Par.map2(a1, a2)(m.op))
+
+    val zero: Par[A] = Par.unit(m.zero)
+  }
+
+  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
+    foldMapV(v, par(m))(f andThen Par.unit)
+
+  /*
+   * 10.9. Use `foldMap` to detect whether a given `IndexedSeq[Int]` is ordered.
+   */
+  def isOrdered(v: IndexedSeq[Int]): Boolean = {
+    case class SeqInfo(ordered: Boolean,
+                       order: Int = 0, // <0 means descending, >0 - ascending, =0 - unknown
+                       boundaries: Option[(Int, Int)] = None)
+
+    val m = new Monoid[SeqInfo] {
+      def op(s1: SeqInfo, s2: SeqInfo): SeqInfo = (s1.boundaries, s2.boundaries) match {
+        // SeqInfo with no boundaries is itself ordered and has no effect to the result of `op`
+        case (None, _) => s2
+        case (_, None) => s1
+        // if both SeqInfos are non-empty, we have to merge them:
+        case (Some((left1, right1)), Some((left2, right2))) =>
+          val newBoundaries = Some((left1, right2))
+          // check, whether one of the intervals is not ordered, or the orders differ:
+          if (!s1.ordered || !s2.ordered || s1.order * s2.order < 0)
+            SeqInfo(ordered = false, boundaries = newBoundaries)
+          else {
+            // calculate the sign of the difference
+            def sign(i: Int) = if (i < 0) -1 else if (i == 0) 0 else 1
+
+            val diffSign = sign(left2 - right1)
+
+            val expectedOrder = if (s1.order == 0) s2.order else s1.order
+            val ordered = diffSign * expectedOrder >= 0
+            val order = if (expectedOrder == 0) diffSign else expectedOrder
+
+            SeqInfo(
+              ordered = ordered,
+              order = order,
+              boundaries = newBoundaries)
+          }
+      }
+
+      val zero: SeqInfo = SeqInfo(ordered = true)
+    }
+
+    foldMapV(v, m)(i => SeqInfo(ordered = true, 0, Some((i, i)))).ordered
+  }
+
+  def isOrderedTest: Prop = {
+    val list = listOf(Gen.int).map(_.toIndexedSeq)
+    val ascending = list.map(_.sorted)
+    val descending = ascending.map(_.reverse)
+
+    def checkOrder(seq: IndexedSeq[Int], asc: Boolean): Boolean =
+      if (seq.isEmpty) true
+      else seq.zip(seq.drop(1)).forall { case (a, b) => (asc && a <= b) || (!asc && a >= b) }
+
+    forAll(ascending)(isOrdered) &&
+      forAll(descending)(isOrdered) &&
+      forAll(list)(l => isOrdered(l) == checkOrder(l, asc = true) || checkOrder(l, asc = false))
+  }
+
 }
