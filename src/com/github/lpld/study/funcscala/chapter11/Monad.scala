@@ -1,5 +1,6 @@
 package com.github.lpld.study.funcscala.chapter11
 
+import com.github.lpld.study.funcscala.chapter12.Applicative
 import com.github.lpld.study.funcscala.chapter6.State
 import com.github.lpld.study.funcscala.chapter7.Par
 import com.github.lpld.study.funcscala.chapter7.Par.Par
@@ -12,31 +13,31 @@ import scala.language.reflectiveCalls
   * @author leopold
   * @since 14/03/17
   */
-trait Monad[F[_]] extends Functor[F] {
+trait Monad[F[_]] extends Applicative[F] {
 
-  def unit[A](a: => A): F[A]
-  def flatMap[A, B](ma: F[A])(f: A => F[B]): F[B]
+  def flatMap[A, B](ma: F[A])(f: A => F[B]): F[B] =
+    join(map(ma)(f))
 
-  def map[A, B](ma: F[A])(f: A => B): F[B] =
+  override def map[A, B](ma: F[A])(f: A => B): F[B] =
     flatMap(ma)(a => unit(f(a)))
 
-  def map2[A, B, C](ma: F[A], mb: F[B])(f: (A, B) => C): F[C] =
+  override def map2[A, B, C](ma: F[A], mb: F[B])(f: (A, B) => C): F[C] =
     flatMap(ma)(a => map(mb)(b => f(a, b)))
 
   /*
    * 11.3. Implement `sequence` and `traverse` combinators.
    */
-  def sequence[A](lma: List[F[A]]): F[List[A]] = traverse(lma)(identity)
+//  def sequence[A](lma: List[F[A]]): F[List[A]] = traverse(lma)(identity)
 
-  def traverse[A, B](la: List[A])(f: A => F[B]): F[List[B]] =
-    la.foldRight(unit(List.empty[B]))((a, fla) => map2(f(a), fla)(_ :: _))
+//  def traverse[A, B](la: List[A])(f: A => F[B]): F[List[B]] =
+//    la.foldRight(unit(List.empty[B]))((a, fla) => map2(f(a), fla)(_ :: _))
 
   /*
    * 11.4. Implement `replicateM`
    */
-  def replicateM[A](n: Int, ma: F[A]): F[List[A]] = map(ma)(a => List.fill(n)(a))
+//  def replicateM[A](n: Int, ma: F[A]): F[List[A]] = map(ma)(a => List.fill(n)(a))
 
-  def product[A, B](ma: F[A], mb: F[B]): F[(A, B)] = map2(ma, mb)((_, _))
+//  def product[A, B](ma: F[A], mb: F[B]): F[(A, B)] = map2(ma, mb)((_, _))
 
   /*
    * 11.6. Implement `filterM` function.
@@ -46,12 +47,6 @@ trait Monad[F[_]] extends Functor[F] {
 
   def filterMViaTraverse[A](ms: List[A])(f: A => F[Boolean]): F[List[A]] =
     map(traverse(ms)(a => map(f(a))(b => (a, b))))(_.filter(_._2).map(_._1))
-
-  def filterM[A](ms: List[A])(f: A => F[Boolean]): F[List[A]] =
-    ms match {
-      case Nil => unit(Nil)
-      case a :: as => map2(f(a), filterM(as)(f))((b, l) => if (b) a :: l else l)
-    }
 
   /*
    * 11.7. Implement the Kleisli composition function `compose`.
@@ -84,7 +79,7 @@ trait Monad[F[_]] extends Functor[F] {
 object Monad {
   val genMonad = new Monad[Gen]  {
     def unit[A](a: => A): Gen[A] = Gen.unit(a)
-    def flatMap[A, B](ma: Gen[A])(f: (A) => Gen[B]): Gen[B] = ma flatMap f
+    override def flatMap[A, B](ma: Gen[A])(f: (A) => Gen[B]): Gen[B] = ma flatMap f
   }
 
   /*
@@ -92,27 +87,27 @@ object Monad {
    */
   val parMonad = new Monad[Par] {
     def unit[A](a: => A): Par[A] = Par.unit(a)
-    def flatMap[A, B](ma: Par[A])(f: (A) => Par[B]): Par[B] = Par.flatMap(ma)(f)
+    override def flatMap[A, B](ma: Par[A])(f: (A) => Par[B]): Par[B] = Par.flatMap(ma)(f)
   }
 
   def parserMonad[P[+_]](p: Parsers[P]) = new Monad[P] {
     def unit[A](a: => A): P[A] = p.succeed(a)
-    def flatMap[A, B](ma: P[A])(f: (A) => P[B]): P[B] = p.flatMap(ma)(f)
+    override def flatMap[A, B](ma: P[A])(f: (A) => P[B]): P[B] = p.flatMap(ma)(f)
   }
 
   val optionMonad = new Monad[Option] {
     def unit[A](a: => A): Option[A] = Some(a)
-    def flatMap[A, B](ma: Option[A])(f: (A) => Option[B]): Option[B] = ma flatMap f
+    override def flatMap[A, B](ma: Option[A])(f: (A) => Option[B]): Option[B] = ma flatMap f
   }
 
   val listMonad = new Monad[List] {
     def unit[A](a: => A): List[A] = List(a)
-    def flatMap[A, B](ma: List[A])(f: (A) => List[B]): List[B] = ma flatMap f
+    override def flatMap[A, B](ma: List[A])(f: (A) => List[B]): List[B] = ma flatMap f
   }
 
   val streamMonad = new Monad[Stream] {
     def unit[A](a: => A): Stream[A] = Stream(a)
-    def flatMap[A, B](ma: Stream[A])(f: (A) => Stream[B]): Stream[B] = ma flatMap f
+    override def flatMap[A, B](ma: Stream[A])(f: (A) => Stream[B]): Stream[B] = ma flatMap f
   }
 
   /*
@@ -120,7 +115,18 @@ object Monad {
    */
   def stateMonad[S] = new Monad[({type f[+A] = State[S, A]})#f] {
       def unit[A](a: => A): State[S, A] = State.unit(a)
-      def flatMap[A, B](ma: State[S, A])(f: (A) => State[S, B]): State[S, B] = ma.flatMap(f)
+      override def flatMap[A, B](ma: State[S, A])(f: (A) => State[S, B]): State[S, B] = ma.flatMap(f)
   }
 
+  /*
+   * 12.5. Write a monad instance for `Either`.
+   */
+  def eitherMonad[E] = new Monad[({type f[x] = Either[E, x]})#f] {
+    def unit[A](a: => A): Either[E, A] = Right(a)
+    override def flatMap[A, B](ma: Either[E, A])(f: (A) => Either[E, B]): Either[E, B] =
+      ma match {
+        case Right(rVal) => f(rVal)
+        case Left(lVal) => Left(lVal)
+      }
+  }
 }

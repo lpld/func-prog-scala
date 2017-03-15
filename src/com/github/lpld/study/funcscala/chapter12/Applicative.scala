@@ -26,6 +26,20 @@ trait Applicative[F[_]] extends Functor[F] {
     la.foldRight(unit(List.empty[B]))((a, fla) => map2(f(a), fla)(_ :: _))
 
   /*
+   * 12.3. Implement `map3` and `map4`.
+   */
+  def map3[A, B, C, D](fa: F[A],
+                       fb: F[B],
+                       fc: F[C])(f: (A, B, C) => D): F[D] =
+    apply(map2(fa, fb)((a, b) => f(a, b, _)): F[C => D])(fc)
+
+  def map4[A, B, C, D, E](fa: F[A],
+                       fb: F[B],
+                       fc: F[C],
+                       fd: F[D])(f: (A, B, C, D) => E): F[E] =
+    apply(map3(fa, fb, fc)((a, b, c) => f(a, b, c, _)): F[D => E])(fd)
+
+  /*
    * 12.1. Transplant the implementations of as many combinators as you can
    * from `Monad` to `Applicative`, using only `map2` and `unit`, or methods
    * implemented in terms of them.
