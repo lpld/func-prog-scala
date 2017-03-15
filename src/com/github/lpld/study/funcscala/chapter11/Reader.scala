@@ -8,6 +8,9 @@ import scala.language.reflectiveCalls
   */
 case class Reader[R, A](run: R => A)
 
+/*
+ * 11.20. Give a monad instance for `Reader` type.
+ */
 object Reader {
   def readerMonad[R] = new Monad[({type f[x] = Reader[R, x]})#f] {
     def unit[A](a: => A): Reader[R, A] = Reader(_ => a)
