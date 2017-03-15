@@ -6,6 +6,8 @@ import com.github.lpld.study.funcscala.chapter7.Par.Par
 import com.github.lpld.study.funcscala.chapter8.Gen
 import com.github.lpld.study.funcscala.chapter9.Parsers
 
+import scala.language.reflectiveCalls
+
 /**
   * @author leopold
   * @since 14/03/17
@@ -50,6 +52,33 @@ trait Monad[F[_]] extends Functor[F] {
       case Nil => unit(Nil)
       case a :: as => map2(f(a), filterM(as)(f))((b, l) => if (b) a :: l else l)
     }
+
+  /*
+   * 11.7. Implement the Kleisli composition function `compose`.
+   */
+  def compose[A, B, C](f: A => F[B], g: B => F[C]): A => F[C] =
+    a => flatMap(f(a))(g)
+
+  /*
+   * 11.8. Implement `flatMap` in terms of `compose`.
+   */
+  def flatMapViaCompose[A, B](ma: F[A])(f: A => F[B]): F[B] =
+    compose((_: Unit) => ma, f)(())
+
+  /*
+   * 11.9. Implement `join` in terms of `flatMap`.
+   */
+  def join[A](mma: F[F[A]]): F[A] =
+    flatMap(mma)(identity)
+
+  /*
+   * 11.10. Implement either `flatMap` or `compose` in terms of `join` and `map`.
+   */
+  def flatMapViaJoin[A, B](ma: F[A])(f: A => F[B]): F[B] =
+    join(map(ma)(f))
+
+  def composeViaJoin[A, B, C](f: A => F[B], g: B => F[C]): A => F[C] =
+    a => join(map(f(a))(g))
 }
 
 object Monad {
@@ -89,12 +118,9 @@ object Monad {
   /*
    * 11.2. Implement a `State` monad.
    */
-  def stateMonad[S] = {
-    type SState[+A] = State[S, A]
-    new Monad[SState] {
+  def stateMonad[S] = new Monad[({type f[+A] = State[S, A]})#f] {
       def unit[A](a: => A): State[S, A] = State.unit(a)
-
       def flatMap[A, B](ma: State[S, A])(f: (A) => State[S, B]): State[S, B] = ma.flatMap(f)
-    }
   }
+
 }
