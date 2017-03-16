@@ -2,11 +2,13 @@ package com.github.lpld.study.funcscala.chapter12
 
 import com.github.lpld.study.funcscala.chapter11.Functor
 
+import scala.language.reflectiveCalls
+
 /**
   * @author leopold
   * @since 15/03/17
   */
-trait Applicative[F[_]] extends Functor[F] {
+trait Applicative[F[_]] extends Functor[F] { self =>
 
   def unit[A](a: => A): F[A]
   /*
@@ -52,4 +54,35 @@ trait Applicative[F[_]] extends Functor[F] {
 
   def filterM[A](ms: List[A])(f: A => F[Boolean]): F[List[A]] =
     ms.foldRight(unit(List.empty[A]))((a, acc) => map2(acc, f(a))((l, b) => if (b) a :: l else l))
+
+  /*
+   * 12.9. Implement `product` function.
+   */
+  def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] =
+    new Applicative[({type f[x] = (F[x], G[x])})#f] {
+      def unit[A](a: => A): (F[A], G[A]) =
+        (self.unit(a), G.unit(a))
+
+      override def apply[A, B](fab: (F[(A) => B], G[(A) => B]))(f: (F[A], G[A])): (F[B], G[B]) =
+        (self.apply(fab._1)(f._1), G.apply(fab._2)(f._2))
+    }
+
+  /*
+   * 12.10. Implement `compose` function.
+   */
+  def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] =
+    new Applicative[({type f[x] = F[G[x]]})#f] {
+      def unit[A](a: => A): F[G[A]] =
+        self.unit(G.unit(a))
+
+      override def apply[A, B](fab: F[G[(A) => B]])(f: F[G[A]]): F[G[B]] =
+        self.map2(fab, f)((gab, ga) => G.apply(gab)(ga))
+    }
+
+
+  /*
+   * 12.12. Implement `sequence` over a `Map`.
+   */
+  def sequenceMap[K, V](ofa: Map[K, F[V]]): F[Map[K, V]] =
+    ofa.foldRight(unit(Map.empty[K, V])) { case ((k, fv), fm) => map2(fv, fm)((v, map) => map + (k -> v)) }
 }
