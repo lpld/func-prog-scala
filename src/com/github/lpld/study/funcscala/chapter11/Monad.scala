@@ -1,6 +1,6 @@
 package com.github.lpld.study.funcscala.chapter11
 
-import com.github.lpld.study.funcscala.chapter12.Applicative
+import com.github.lpld.study.funcscala.chapter12.{Applicative, Traverse}
 import com.github.lpld.study.funcscala.chapter6.State
 import com.github.lpld.study.funcscala.chapter7.Par
 import com.github.lpld.study.funcscala.chapter7.Par.Par
@@ -129,4 +129,27 @@ object Monad {
         case Left(lVal) => Left(lVal)
       }
   }
+
+  /*
+   * 12.20. Implement the composition of two monads where one of them is traversable.
+   */
+  def composeM[F[_], G[_]](F: Monad[F], G: Monad[G], T: Traverse[G]) =
+    new Monad[({type f[x] = F[G[x]]})#f] {
+      override def unit[A](a: => A): F[G[A]] = F.unit(G.unit(a))
+
+      // this looks a bit verbose
+      override def flatMap[A, B](ma: F[G[A]])(f: (A) => F[G[B]]): F[G[B]] =
+        F.flatMap(ma)(ga =>
+          F.map(
+            T.sequence[F, G[B]](G.map(ga)(f))(F)
+          )(G.join)
+        )
+
+      override def join[A](mma: F[G[F[G[A]]]]): F[G[A]] =
+        F.flatMap(mma)(gfga =>
+          F.map(
+            T.sequence[F, G[A]](gfga)(F)
+          )(G.join)
+        )
+    }
 }
