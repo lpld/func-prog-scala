@@ -36,9 +36,9 @@ trait Applicative[F[_]] extends Functor[F] { self =>
     apply(map2(fa, fb)((a, b) => f(a, b, _)): F[C => D])(fc)
 
   def map4[A, B, C, D, E](fa: F[A],
-                       fb: F[B],
-                       fc: F[C],
-                       fd: F[D])(f: (A, B, C, D) => E): F[E] =
+                          fb: F[B],
+                          fc: F[C],
+                          fd: F[D])(f: (A, B, C, D) => E): F[E] =
     apply(map3(fa, fb, fc)((a, b, c) => f(a, b, c, _)): F[D => E])(fd)
 
   /*
