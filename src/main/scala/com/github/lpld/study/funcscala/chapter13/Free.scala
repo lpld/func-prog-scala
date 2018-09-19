@@ -1,7 +1,7 @@
 package com.github.lpld.study.funcscala.chapter13
 
 import com.github.lpld.study.funcscala.chapter11.Monad
-import com.github.lpld.study.funcscala.chapter13.Free.TailRec
+import com.github.lpld.study.funcscala.chapter13.Translate.~>
 import com.github.lpld.study.funcscala.chapter7.Par.Par
 
 import scala.annotation.tailrec
@@ -50,26 +50,27 @@ object Free {
     }
   }
 
+  @tailrec def step[F[_], A](fr: Free[F, A]): Free[F, A] = fr match {
+    case FlatMap(FlatMap(x, f), g) => step(x flatMap (a => f(a) flatMap g))
+    case FlatMap(Return(x), f) => step(f(x))
+    case _ => fr
+  }
+
   /**
     * 13.3. Implement a generic interpreter for `Free[F, A]` given a `Monad[F]`.
     */
-  def run[F[_], A](free: Free[F, A])(implicit M: Monad[F]): F[A] = {
-    @tailrec def step(fr: Free[F, A]): Free[F, A] = fr match {
-      case FlatMap(FlatMap(x, f), g) => step(x flatMap (a => f(a) flatMap g))
-      case FlatMap(Return(x), f) => step(f(x))
-      case _ => fr
-    }
-
-    step(free) match {
-      case Return(a) => M.unit(a)
-      case Suspend(r) => r
-      case FlatMap(Suspend(r), f) => M.flatMap(r)(a => run(f(a)))
-      case _ => sys.error("")
-    }
+  def run[F[_], A](free: Free[F, A])(implicit M: Monad[F]): F[A] = step(free) match {
+    case Return(a) => M.unit(a)
+    case Suspend(r) => r
+    case FlatMap(Suspend(r), f) => M.flatMap(r)(a => run(f(a)))
+    case _ => sys.error("")
   }
 
-}
-
-object Run extends App {
-
+  def runFree[F[_], G[_], A](free: Free[F, A])(t: F ~> G)(implicit G: Monad[G]): G[A] =
+    step(free) match {
+      case Return(a) => G.unit(a)
+      case Suspend(r) => t(r)
+      case FlatMap(Suspend(r), f) => G.flatMap(t(r))(a => runFree(f(a))(t))
+      case _ => sys.error("")
+    }
 }
