@@ -7,7 +7,7 @@ import com.github.lpld.study.funcscala.chapter7.Par.Par
 import com.github.lpld.study.funcscala.chapter8.Gen
 import com.github.lpld.study.funcscala.chapter9.Parsers
 
-import scala.language.reflectiveCalls
+import scala.language.{higherKinds, reflectiveCalls}
 
 /**
   * @author leopold
@@ -27,17 +27,17 @@ trait Monad[F[_]] extends Applicative[F] {
   /*
    * 11.3. Implement `sequence` and `traverse` combinators.
    */
-//  def sequence[A](lma: List[F[A]]): F[List[A]] = traverse(lma)(identity)
+  override def sequence[A](lma: List[F[A]]): F[List[A]] = traverse(lma)(identity)
 
-//  def traverse[A, B](la: List[A])(f: A => F[B]): F[List[B]] =
-//    la.foldRight(unit(List.empty[B]))((a, fla) => map2(f(a), fla)(_ :: _))
+  override def traverse[A, B](la: List[A])(f: A => F[B]): F[List[B]] =
+    la.foldRight(unit(List.empty[B]))((a, fla) => map2(f(a), fla)(_ :: _))
 
   /*
    * 11.4. Implement `replicateM`
    */
-//  def replicateM[A](n: Int, ma: F[A]): F[List[A]] = map(ma)(a => List.fill(n)(a))
+  override def replicateM[A](n: Int, ma: F[A]): F[List[A]] = map(ma)(a => List.fill(n)(a))
 
-//  def product[A, B](ma: F[A], mb: F[B]): F[(A, B)] = map2(ma, mb)((_, _))
+  override def product[A, B](ma: F[A], mb: F[B]): F[(A, B)] = map2(ma, mb)((_, _))
 
   /*
    * 11.6. Implement `filterM` function.
@@ -74,6 +74,23 @@ trait Monad[F[_]] extends Applicative[F] {
 
   def composeViaJoin[A, B, C](f: A => F[B], g: B => F[C]): A => F[C] =
     a => join(map(f(a))(g))
+
+  // needed for for-comprehension:
+  import Monad.MonadSyntax
+  private implicit val M: Monad[F] = this
+
+  def doWhile[A](a: F[A])(cond: A => F[Boolean]): F[Unit] = {
+    for {
+      a1 <- a
+      ok <- cond(a1)
+      _ <- if (ok) doWhile(a)(cond) else unit(())
+    } yield ()
+  }
+
+  def forever[A, B](a: F[A]): F[B] = {
+    lazy val t: F[B] = forever(a)
+    a flatMap (_ => t)
+  }
 }
 
 object Monad {
@@ -85,29 +102,35 @@ object Monad {
   /*
    * 11.1. Write `Monad` instances for `Par`, `Parser`, `Option`, `Stream` and `List`.
    */
-  val parMonad = new Monad[Par] {
+  implicit val parMonad = new Monad[Par] {
     def unit[A](a: => A): Par[A] = Par.unit(a)
     override def flatMap[A, B](ma: Par[A])(f: (A) => Par[B]): Par[B] = Par.flatMap(ma)(f)
   }
 
-  def parserMonad[P[+_]](p: Parsers[P]) = new Monad[P] {
+  implicit def parserMonad[P[+ _]](p: Parsers[P]) = new Monad[P] {
     def unit[A](a: => A): P[A] = p.succeed(a)
     override def flatMap[A, B](ma: P[A])(f: (A) => P[B]): P[B] = p.flatMap(ma)(f)
   }
 
-  val optionMonad = new Monad[Option] {
+  implicit val optionMonad = new Monad[Option] {
     def unit[A](a: => A): Option[A] = Some(a)
     override def flatMap[A, B](ma: Option[A])(f: (A) => Option[B]): Option[B] = ma flatMap f
   }
 
-  val listMonad = new Monad[List] {
+  implicit val listMonad = new Monad[List] {
     def unit[A](a: => A): List[A] = List(a)
-    override def flatMap[A, B](ma: List[A])(f: (A) => List[B]): List[B] = ma flatMap f
+    override def flatMap[A, B](ma: List[A])(f: A => List[B]): List[B] = ma flatMap f
   }
 
-  val streamMonad = new Monad[Stream] {
+  implicit val streamMonad = new Monad[Stream] {
     def unit[A](a: => A): Stream[A] = Stream(a)
-    override def flatMap[A, B](ma: Stream[A])(f: (A) => Stream[B]): Stream[B] = ma flatMap f
+    override def flatMap[A, B](ma: Stream[A])(f: A => Stream[B]): Stream[B] = ma flatMap f
+  }
+
+  implicit class MonadSyntax[F[_], A](ma: F[A])(implicit M: Monad[F]) {
+
+    def flatMap[B](f: A => F[B]): F[B] = M.flatMap(ma)(f)
+    def map[B](f: A => B): F[B] = M.map(ma)(f)
   }
 
   /*
@@ -138,7 +161,7 @@ object Monad {
       override def unit[A](a: => A): F[G[A]] = F.unit(G.unit(a))
 
       // this looks a bit verbose
-      override def flatMap[A, B](ma: F[G[A]])(f: (A) => F[G[B]]): F[G[B]] =
+      override def flatMap[A, B](ma: F[G[A]])(f: A => F[G[B]]): F[G[B]] =
         F.flatMap(ma)(ga =>
           F.map(
             T.sequence[F, G[B]](G.map(ga)(f))(F)
