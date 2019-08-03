@@ -1,3 +1,9 @@
+# sbt
+target/
+*.class
+
+# idea
 *.iml
-out
-.idea
+.idea/
+out/
+

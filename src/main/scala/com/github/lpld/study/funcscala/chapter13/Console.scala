@@ -19,8 +19,8 @@ sealed trait Console[A] {
 
 case object ReadLine extends Console[Option[String]] {
 
-  def toPar = Par.lazyUnit(run)
-  def toThunk = () => run
+  def toPar: Par[Option[String]] = Par.lazyUnit(run)
+  def toThunk: () ⇒ Option[String] = () => run
 
   def run: Option[String] =
     try Some(StdIn.readLine())
@@ -29,16 +29,16 @@ case object ReadLine extends Console[Option[String]] {
 
 case class PrintLine(line: String) extends Console[Unit] {
 
-  def toPar = Par.lazyUnit(println(line))
-  def toThunk = () => println(line)
+  def toPar: Par[Unit] = Par.lazyUnit(println(line))
+  def toThunk: () ⇒ Unit = () => println(line)
 }
 
 object Console {
 
   type ConsoleIO[A] = Free[Console, A]
 
-  def readLn: ConsoleIO[Option[String]] = Suspend(ReadLine)
-  def printLn(line: String): ConsoleIO[Unit] = Suspend(PrintLine(line))
+  def readLn: ConsoleIO[Option[String]] = Free.Suspend(ReadLine)
+  def printLn(line: String): ConsoleIO[Unit] = Free.Suspend(PrintLine(line))
 
   val consoleToFunction0: Console ~> Function0 =
     new (Console ~> Function0) {def apply[A](c: Console[A]): () => A = c.toThunk }
@@ -61,4 +61,6 @@ object Console {
 
   def runConsolePar[A](a: Free[Console, A]): Par[A] =
     Free.runFree[Console, Par, A](a)(consoleToPar)
+
+  def runConsole[A](a: Free[Console, A]): A = Free.runTrampoline(Free.translate(a)(consoleToFunction0))
 }
